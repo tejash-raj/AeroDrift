@@ -64,11 +64,11 @@ The camera sits above and behind the ship, so shots fired straight ahead don't l
 - On the **first launch only**, a three-card "How to play" screen appears, adapted to the current input device: keys on desktop, gestures on touch.
 - The first enemies spawn about **4 seconds out**, which gives time to try the controls.
 - **Control hints** fade out after 9 seconds and can be turned off in settings.
-- A **Recharging** label appears the moment you try to fire on an empty laser. A silent failure became a readable rule.
+- An **Empty** label and a red ammo count appear the moment you fire with no ammo, and a slow emergency trickle means the gun is never completely dead. A silent failure became a readable rule.
 
 ### 3.4 Reasons to play again
 
-- **Sectors.** Every 30 seconds there are more enemies, faster flight and more saucers, announced with a banner and a chime.
+- **Sectors that follow your score.** Play well and the next sector comes sooner: more enemies, faster flight, more saucers, announced with a banner and a chime. From sector 2, saucers shoot back.
 - **Chain multiplier up to ×5**, with a visible draining timer, which rewards aggressive, accurate play.
 - **Risk / reward ships.** The fragile Interceptor earns ×1.5 points and the Defender ×1.2. The trade-off is printed on the ship card, not hidden.
 - **Game-over screen** with score, a personal-best badge, kills, accuracy, survival time, sector and best chain. One button retries (`R`), one changes ship, one shares the score.
@@ -86,8 +86,8 @@ The camera sits above and behind the ship, so shots fired straight ahead don't l
 ### 3.6 A HUD that reads at a glance
 
 - Every HUD cluster sits on a translucent plate. In early tests the labels disappeared against the bright daylight sky.
-- Each gauge has a **label and a state colour**: boost turns amber when active and red when locked; the laser turns red while recharging.
-- Hull is shown as **discrete pips in the ship's colour**, which are easier to count mid-dodge than a continuous bar.
+- Each gauge has a **label, a number and a state colour**: hull goes green → amber → red, boost turns amber when active and red when locked, and ammo turns amber when low and red when empty.
+- Every hit shows a **red damage number** and shakes the hull bar. After playtesters didn't notice damage at all with the first design (pips), this became the loudest signal on screen.
 - At **one hull point left**, a slow red pulse frames the screen.
 
 ### 3.7 Visual language
@@ -102,7 +102,7 @@ The camera sits above and behind the ship, so shots fired straight ahead don't l
 
 - The music runs through a **low-pass filter driven by game state**: muffled in the hangar, wide open in flight, underwater-dull when paused, slowing down like a tape stop on game over.
 - Overlapping sound buffers mean rapid fire **never cuts itself off**. Pitch varies slightly per shot so repetition doesn't grate.
-- UI sounds (select, launch, recharge-denied, sector chime) are **synthesised in code**, so they add no download.
+- UI sounds (select, launch, empty-gun, pickup, saucer charge-up, sector chime) are **synthesised in code**, so they add no download.
 - Separate master, music and effects sliders, plus `M` to mute from anywhere.
 
 ### 3.9 Accessibility and comfort
@@ -151,7 +151,26 @@ Measure: time to first kill, deaths before sector 2, number of "what happened?" 
 
 ---
 
-## 6. Reflection
+## 6. Round 2: what playtesters asked for
+
+After the first playtests, friends suggested six changes. I evaluated each one before building it:
+
+| Feedback | Decision | Why |
+| --- | --- | --- |
+| "Health should drop when you crash" | **It already did.** I redesigned the feedback instead | Players didn't notice a pip disappearing, so this was a *visibility* problem, not a missing feature. Now there's a hull bar, a red damage number, a shake and a stronger flash. |
+| Enemies should shoot back | Built, from sector 2 | Adds a second threat to read and dodge. Every shot is telegraphed by an amber glow, and bolts can be shot down. |
+| Speed and density should rise with score | Built, with a time floor and a 15 s minimum per sector | Good players get pushed sooner; a lucky start can't skip straight to the hard part. |
+| Limited ammo | Built, with an emergency trickle below 10 rounds | Limited ammo adds tension, but an empty gun with no way back is a dead end. |
+| Medkits and ammo drops | Built, biased towards what you're short of | Creates "swerve for it?" decisions. Pickups get rarer each sector so runs still end. |
+| Gyroscope steering | Built as an option, off by default | Some players love tilt, others find it tiring or can't use it. Default stays touch. |
+
+**Testing the changes with the bot:** the first version let a pickup-seeking bot survive the full 15-minute cap, because healing outpaced damage. Rarer pickups, faster bolts and escalating late-game damage brought runs back to between 25 seconds and 10 minutes.
+
+✎ *Add: a second playtest round with the same friends. Did the hull bar fix the "I didn't know I was hit" problem? Was enemy fire fair?*
+
+---
+
+## 7. Reflection
 
 ✎ *Write 4–6 sentences in your own voice. Prompts:*
 - What did auditing my own work teach me? (The overclaiming lesson is a strong, honest story.)

@@ -212,6 +212,14 @@ class AudioEngine {
       case 'chime':
         [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.4, { vol: 0.09, delay: i * 0.08 }));
         break;
+      case 'pickup':
+        tone(660, 0.09, { type: 'triangle', vol: 0.12 });
+        tone(990, 0.09, { type: 'triangle', vol: 0.12, delay: 0.07 });
+        tone(1320, 0.16, { type: 'triangle', vol: 0.1, delay: 0.14 });
+        break;
+      case 'charge':
+        tone(180, 0.55, { type: 'sawtooth', vol: 0.035, slideTo: 720 });
+        break;
       case 'thud':
         tone(130, 0.4, { type: 'sine', vol: 0.45, slideTo: 38 });
         break;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SHIPS } from '../game/config';
 import { game } from '../game/state';
 import { audio } from '../game/audio';
+import { requestTilt, tiltSupported } from '../game/tilt';
 import { RetryIcon, ShareIcon } from './Icons';
 import { Kbd, Modal, Segmented, Slider, Toggle } from './primitives';
 
@@ -66,6 +67,7 @@ export function GameOver({ run, best, onRetry, onMenu, touch }) {
     ['Survived', fmtTime(run.time)],
     ['Sector', run.sector],
     ['Chain', `×${run.maxCombo}`],
+    ['Pickups', run.pickups ?? 0],
   ];
 
   return (
@@ -110,6 +112,7 @@ export function GameOver({ run, best, onRetry, onMenu, touch }) {
 // ── Settings ────────────────────────────────────────────────
 export function SettingsPanel({ settings, onChange, onClose, onResetBest, best }) {
   const [confirmReset, setConfirmReset] = useState(false);
+  const [tiltError, setTiltError] = useState(false);
   const set = (key) => (value) => onChange({ ...settings, [key]: value });
 
   return (
@@ -160,6 +163,27 @@ export function SettingsPanel({ settings, onChange, onClose, onResetBest, best }
             ]}
           />
         </div>
+        {tiltSupported && (
+          <>
+            <Toggle
+              label="Tilt to steer"
+              hint={tiltError ? 'Motion access was blocked. Allow it in your browser settings.' : 'Use the gyroscope instead of the stick'}
+              checked={settings.tilt}
+              onChange={async (v) => {
+                if (!v) {
+                  onChange({ ...settings, tilt: false });
+                  return;
+                }
+                const ok = await requestTilt(); // must run from this tap (iOS)
+                setTiltError(!ok);
+                onChange({ ...settings, tilt: ok });
+              }}
+            />
+            {settings.tilt && (
+              <Slider label="Tilt sensitivity" value={settings.tiltSensitivity} onChange={set('tiltSensitivity')} />
+            )}
+          </>
+        )}
         <Toggle label="Invert vertical" hint="Push up to dive, like a flight stick" checked={settings.invertY} onChange={set('invertY')} />
         <Toggle label="Control hints" hint="Show reminders at the start of each run" checked={settings.showHints} onChange={set('showHints')} />
       </section>
@@ -198,14 +222,16 @@ export function SettingsPanel({ settings, onChange, onClose, onResetBest, best }
 export function HowToPlay({ touch, firstRun, onClose, onLaunch }) {
   const cards = touch
     ? [
-        ['Steer', 'Drag anywhere on the left half of the screen. The stick appears under your thumb.'],
-        ['Shoot', 'Hold FIRE. Your laser drains energy; stop firing and it refills fast.'],
-        ['Boost', 'Hold BOOST to double your speed. An empty tank locks until it recharges.'],
+        ['Steer', 'Drag anywhere on the left half of the screen, or turn on Tilt in Settings.'],
+        ['Shoot', 'Hold FIRE. Ammo is limited, so fly through cyan crystals to reload.'],
+        ['Boost', 'Hold BOOST to fly faster. An empty tank locks until it recharges.'],
+        ['Survive', 'Green crystals repair your hull. Dodge the red bolts saucers fire, or shoot them down.'],
       ]
     : [
         ['Steer', <>Use <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd> or the arrow keys to fly.</>],
-        ['Shoot', <>Hold <Kbd>Space</Kbd>. Your laser drains energy; stop firing and it refills fast.</>],
-        ['Boost', <>Hold <Kbd>Shift</Kbd> to double your speed. An empty tank locks until it recharges.</>],
+        ['Shoot', <>Hold <Kbd>Space</Kbd>. Ammo is limited, so fly through cyan crystals to reload.</>],
+        ['Boost', <>Hold <Kbd>Shift</Kbd> to fly faster. An empty tank locks until it recharges.</>],
+        ['Survive', 'Green crystals repair your hull. Dodge the red bolts saucers fire, or shoot them down.'],
       ];
 
   return (
@@ -237,7 +263,11 @@ export function HowToPlay({ touch, firstRun, onClose, onLaunch }) {
         <li>
           Chain kills within 2.5 seconds to build a <b>multiplier up to ×5</b>. Taking a hit resets it.
         </li>
-        <li>Every 30 seconds you enter a new sector. Enemies get denser and you fly faster.</li>
+        <li>
+          The higher your score, the faster you fly and the more enemies appear. From <b>sector 2</b>, saucers glow
+          amber just before they fire.
+        </li>
+        <li>Crashes cost more hull than bolts. Bigger rocks hit harder.</li>
         <li>
           After a hit your hull flashes. You can’t be damaged again for a moment, so use it to escape.
         </li>
@@ -272,7 +302,7 @@ export function Briefing({ onClose }) {
         </p>
         <p>
           <b>Your orders:</b> fly as far as you can. Break the rocks, bring down the saucers, and keep an eye on your
-          laser energy. Nobody expects you to win. They need you to hold out as long as possible.
+          ammo. Nobody expects you to win. They need you to hold out as long as possible.
         </p>
       </div>
     </Modal>

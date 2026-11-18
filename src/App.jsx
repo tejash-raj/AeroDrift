@@ -11,6 +11,7 @@ import { clearField, resetGame } from './game/simulation';
 import { audio } from './game/audio';
 import { on } from './game/events';
 import { load, save } from './game/storage';
+import { recenterTilt, requestTilt, setTilt, tiltSupported } from './game/tilt';
 
 const KEYMAP = {
   KeyW: 'up',
@@ -59,7 +60,16 @@ export default function App() {
     audio.setVolumes({ master: settings.master, music: settings.music, sfx: settings.sfx, muted: settings.muted });
     document.documentElement.classList.toggle('reduce-motion', settings.reducedMotion);
     document.documentElement.classList.toggle('quality-low', settings.quality === 'low');
+    setTilt({ enabled: settings.tilt, sensitivity: settings.tiltSensitivity });
   }, [settings]);
+
+  const tiltOn = settings.tilt && tiltSupported;
+  // re-arm the sensor from a tap and treat the current grip as "level"
+  const armTilt = useCallback(() => {
+    if (!tiltOn) return;
+    requestTilt();
+    recenterTilt();
+  }, [tiltOn]);
 
   // ── screen → simulation phase + music mood ──────────────
   useEffect(() => {
@@ -69,6 +79,7 @@ export default function App() {
 
   // ── actions ─────────────────────────────────────────────
   const startRun = useCallback(() => {
+    armTilt();
     audio.unlock();
     audio.startMusic();
     audio.synth('launch');
@@ -79,7 +90,7 @@ export default function App() {
     setRun(null);
     setScreen('playing');
     document.activeElement?.blur?.();
-  }, [shipKey]);
+  }, [shipKey, armTilt]);
 
   const launch = useCallback(() => {
     if (!load('onboarded', false)) {
@@ -98,12 +109,13 @@ export default function App() {
   }, []);
 
   const resume = useCallback(() => {
+    armTilt();
     clearInput();
     setPanel(null);
     game.phase = 'playing';
     setScreen('playing');
     document.activeElement?.blur?.();
-  }, []);
+  }, [armTilt]);
 
   const toMenu = useCallback(() => {
     clearInput();
@@ -255,7 +267,7 @@ export default function App() {
           onToggleMute={toggleMute}
         />
       )}
-      {screen === 'playing' && touch && <TouchControls showHints={settings.showHints} />}
+      {screen === 'playing' && touch && <TouchControls showHints={settings.showHints} tilt={tiltOn} />}
 
       {screen === 'paused' && !panel && (
         <PauseMenu onResume={resume} onRestart={startRun} onSettings={() => openPanel('settings')} onQuit={toMenu} touch={touch} />

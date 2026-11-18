@@ -23,6 +23,7 @@ export default function HUD({ best, touch, showHints, muted, onPause, onToggleMu
   const r = useRef({}).current; // element registry, filled by callback refs
   const [toast, setToast] = useState(null);
   const [pop, setPop] = useState(null);
+  const [hurt, setHurt] = useState(null);
   const [hints, setHints] = useState(showHints);
 
   useEffect(() => {
@@ -55,20 +56,27 @@ export default function HUD({ best, touch, showHints, muted, onPause, onToggleMu
       });
       r.combo.style.setProperty('--t', Math.max(0, game.comboTimer / RULES.comboWindow).toFixed(3));
 
-      set('hull', h.hull, (v) => {
-        [...r.hull.children].forEach((pip, i) => pip.classList.toggle('is-empty', i >= v));
-        r.danger.classList.toggle('is-on', v === 1);
+      const hp = Math.ceil(h.health);
+      set('health', hp, (v) => {
+        const frac = v / ship.maxHealth;
+        r.healthBar.style.transform = `scaleX(${frac})`;
+        r.healthValue.textContent = v;
+        r.health.dataset.level = frac <= RULES.lowHealth ? 'low' : frac <= 0.6 ? 'mid' : 'ok';
+        r.danger.classList.toggle('is-on', frac <= RULES.lowHealth && v > 0);
       });
 
       set('boost', Math.round(h.boost), (v) => (r.boostBar.style.transform = `scaleX(${v / 100})`));
       set('boostLocked', h.boostLocked, (v) => r.boost.classList.toggle('is-locked', v));
       set('boosting', h.boosting, (v) => r.boost.classList.toggle('is-active', v));
 
-      set('energy', Math.round(h.energy), (v) => (r.energyBar.style.transform = `scaleX(${v / 100})`));
-      set('recharging', h.recharging, (v) => {
-        r.energy.classList.toggle('is-low', v);
-        r.energyState.textContent = v ? 'Recharging' : '';
+      const ammo = Math.floor(h.ammo);
+      set('ammo', ammo, (v) => {
+        const frac = v / ship.maxAmmo;
+        r.ammoBar.style.transform = `scaleX(${frac})`;
+        r.ammoValue.textContent = v;
+        r.ammo.dataset.level = v < 1 ? 'empty' : frac <= 0.2 ? 'low' : 'ok';
       });
+      set('outOfAmmo', h.outOfAmmo, (v) => (r.ammoState.textContent = v ? 'Empty' : ''));
 
       const ax = Math.round(game.aim.x * window.innerWidth);
       const ay = Math.round(game.aim.y * window.innerHeight);
@@ -83,13 +91,27 @@ export default function HUD({ best, touch, showHints, muted, onPause, onToggleMu
 
   useEffect(() => {
     const offs = [
-      on('damage', () => pulse(r.damage, 'is-flash')),
+      on('damage', ({ amount }) => {
+        pulse(r.damage, 'is-flash');
+        pulse(r.health, 'is-shake');
+        setHurt({ id: Math.random(), amount });
+      }),
+      on('pickup', ({ type, amount }) => {
+        pulse(type === 'health' ? r.health : r.ammo, 'is-gain');
+        setPop({ id: Math.random(), text: `+${amount} ${type === 'health' ? 'hull' : 'ammo'}`, kind: type });
+      }),
       on('hit', () => pulse(r.crosshair, 'is-hit')),
       on('kill', ({ points, combo }) => {
         pulse(r.crosshair, 'is-kill');
-        setPop({ id: Math.random(), points, combo });
+        setPop({ id: Math.random(), points, combo, kind: 'score' });
       }),
-      on('sector', (n) => setToast({ id: n, title: `Sector ${String(n).padStart(2, '0')}`, body: 'Hostile density rising' })),
+      on('sector', (n) =>
+        setToast({
+          id: n,
+          title: `Sector ${String(n).padStart(2, '0')}`,
+          body: n === RULES.enemyFireSector ? 'Saucers shoot back — dodge the red bolts' : 'Faster flight, more hostiles',
+        }),
+      ),
     ];
     return () => offs.forEach((off) => off());
   }, [r]);
@@ -109,8 +131,8 @@ export default function HUD({ best, touch, showHints, muted, onPause, onToggleMu
         <span className="crosshair__ring" />
         <span className="crosshair__dot" />
         {pop && (
-          <span key={pop.id} className="score-pop">
-            +{pop.points}
+          <span key={pop.id} className={`score-pop score-pop--${pop.kind}`}>
+            {pop.text ?? `+${pop.points}`}
             {pop.combo > 1 && <small> ×{pop.combo}</small>}
           </span>
         )}
@@ -147,13 +169,18 @@ export default function HUD({ best, touch, showHints, muted, onPause, onToggleMu
       </div>
 
       <section className="hud__systems" aria-label="Ship systems">
-        <div className="gauge">
-          <span className="gauge__label">Hull</span>
-          <div ref={(n) => { r.hull = n; }} className="hull-pips">
-            {Array.from({ length: ship.hull }, (_, i) => (
-              <i key={i} style={{ '--ship': ship.color }} />
-            ))}
+        <div ref={(n) => { r.health = n; }} className="gauge gauge--health" data-level="ok">
+          <span className="gauge__label">
+            Hull <b ref={(n) => { r.healthValue = n; }} className="gauge__value">{ship.maxHealth}</b>
+          </span>
+          <div className="bar bar--thick">
+            <span ref={(n) => { r.healthBar = n; }} className="bar__fill" />
           </div>
+          {hurt && (
+            <span key={hurt.id} className="hurt-pop">
+              −{hurt.amount}
+            </span>
+          )}
         </div>
         <div ref={(n) => { r.boost = n; }} className="gauge gauge--boost">
           <span className="gauge__label">Boost</span>
@@ -161,12 +188,13 @@ export default function HUD({ best, touch, showHints, muted, onPause, onToggleMu
             <span ref={(n) => { r.boostBar = n; }} className="bar__fill" />
           </div>
         </div>
-        <div ref={(n) => { r.energy = n; }} className="gauge gauge--energy">
+        <div ref={(n) => { r.ammo = n; }} className="gauge gauge--ammo" data-level="ok">
           <span className="gauge__label">
-            Laser <em ref={(n) => { r.energyState = n; }} className="gauge__state" />
+            Ammo <em ref={(n) => { r.ammoState = n; }} className="gauge__state" />
+            <b ref={(n) => { r.ammoValue = n; }} className="gauge__value">{ship.maxAmmo}</b>
           </span>
           <div className="bar">
-            <span ref={(n) => { r.energyBar = n; }} className="bar__fill" />
+            <span ref={(n) => { r.ammoBar = n; }} className="bar__fill" />
           </div>
         </div>
       </section>

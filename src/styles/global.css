@@ -1700,3 +1700,163 @@ p {
 .combo:not(.is-on) {
   display: none;
 }
+
+/* ── v2.1: health bar, ammo, pickups, tilt ───────────────── */
+.gauge {
+  position: relative;
+}
+.gauge__label {
+  align-items: baseline;
+  gap: 6px;
+}
+.gauge__value {
+  margin-left: auto;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.bar--thick {
+  height: 8px;
+  border-radius: 4px;
+}
+.bar__fill {
+  transition:
+    transform 0.25s var(--ease-out),
+    background-color 0.2s;
+}
+.gauge--health .bar__fill {
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(125, 255, 176, 0.45);
+}
+.gauge--health[data-level='mid'] .bar__fill {
+  background: var(--amber);
+  box-shadow: 0 0 10px rgba(255, 181, 71, 0.45);
+}
+.gauge--health[data-level='low'] .bar__fill {
+  background: var(--red);
+  box-shadow: 0 0 12px rgba(255, 77, 94, 0.6);
+}
+.gauge--health[data-level='low'] .gauge__value {
+  color: var(--red);
+}
+.gauge--ammo .bar__fill {
+  background: var(--cyan);
+}
+.gauge--ammo[data-level='low'] .bar__fill {
+  background: var(--amber);
+}
+.gauge--ammo[data-level='low'] .gauge__value {
+  color: var(--amber);
+}
+.gauge--ammo[data-level='empty'] .gauge__value {
+  color: var(--red);
+}
+.gauge.is-shake {
+  animation: shake 0.4s var(--ease-out);
+}
+.gauge.is-gain .bar {
+  animation: gain 0.5s var(--ease-out);
+}
+.hurt-pop {
+  position: absolute;
+  right: 0;
+  top: -18px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--red);
+  pointer-events: none;
+  animation: pop 0.9s var(--ease-out) forwards;
+}
+.score-pop--health {
+  color: var(--green);
+}
+.score-pop--ammo {
+  color: var(--cyan);
+}
+
+.tilt-chip {
+  position: absolute;
+  left: calc(var(--edge) + var(--safe-l));
+  bottom: calc(var(--edge) + var(--safe-b) + 10px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border-radius: 999px;
+  background: rgba(5, 8, 15, 0.55);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  pointer-events: auto;
+}
+.tilt-chip__btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--wash-strong);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* six result stats: 3 × 2 everywhere */
+.stats {
+  grid-template-columns: repeat(3, 1fr);
+}
+.stats__item:last-child {
+  grid-column: auto;
+}
+/* four how-to cards: 2 × 2 on wider screens */
+.howto {
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (max-width: 720px) and (orientation: portrait), (max-height: 560px) {
+  .howto {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes shake {
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+@keyframes gain {
+  40% {
+    transform: scaleY(1.8);
+    filter: brightness(1.6);
+  }
+}
+
+/* long sector messages wrap on narrow screens; dialogs fully opaque */
+.toast span {
+  white-space: normal;
+  max-width: min(520px, 82vw);
+  text-align: center;
+  line-height: 1.6;
+}
+.modal {
+  background: #070b14;
+}
+@media (max-height: 560px) {
+  .toast {
+    top: 12%;
+  }
+}

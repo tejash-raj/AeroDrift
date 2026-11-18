@@ -8,6 +8,8 @@ import Clouds from './Clouds';
 import Enemies from './Enemies';
 import Projectiles from './Projectiles';
 import Particles from './Particles';
+import Pickups from './Pickups';
+import EnemyFire from './EnemyFire';
 import Hero from './Hero';
 
 // Mounted first so the simulation runs before every renderer each frame.
@@ -39,6 +41,8 @@ function GameScene({ shipKey, timeKey, quality }) {
       <Clouds timeKey={timeKey} />
       <Enemies />
       <Projectiles shipKey={shipKey} />
+      <Pickups />
+      <EnemyFire />
       <Particles />
       <Suspense fallback={null}>
         <Hero shipKey={shipKey} />

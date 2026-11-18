@@ -33,6 +33,19 @@ function sectorParams(sector) {
   };
 }
 
+/** Score needed to reach `sector` (sector 1 = 0). Each sector costs a bit more than the last. */
+export function scoreForSector(sector) {
+  const n = sector - 1;
+  return RULES.sectorScoreBase * n + (RULES.sectorScoreStep * n * (n - 1)) / 2;
+}
+
+function sectorFor(score, time) {
+  let byScore = 1;
+  while (score >= scoreForSector(byScore + 1)) byScore++;
+  const byTime = 1 + Math.floor(time / RULES.sectorTimeFloor);
+  return Math.max(byScore, byTime);
+}
+
 function addTrauma(amount) {
   if (!game.settings.screenShake || game.settings.reducedMotion) return;
   game.trauma = Math.min(1, game.trauma + amount);
@@ -64,6 +77,8 @@ export function spawnEnemy(e, aheadMin = RULES.spawnAheadMin, aheadMax = RULES.s
   e.drift = isUfo ? rand(10, 24) : rand(4, 16); // closing speed towards the player
   e.fall = isUfo ? 0 : rand(0, 2.4); // the "shower" — rocks sink towards the ocean
   e.flash = 0;
+  e.fireTimer = rand(1.5, 3.5);
+  e.charge = 0;
   e.alive = true;
   e.inPlay = true;
 }
@@ -94,6 +109,8 @@ export function clearField() {
   }
   for (const b of game.bullets) b.active = false;
   for (const p of game.particles) p.active = false;
+  for (const p of game.pickups) p.active = false;
+  for (const b of game.bolts) b.active = false;
   const h = game.hero;
   h.pos.set(...RULES.heroStart);
   h.vel.set(0, 0);
@@ -114,12 +131,13 @@ export function resetGame(shipKey) {
   game.ship = ship;
 
   const h = game.hero;
-  h.hull = ship.hull;
+  h.health = ship.maxHealth;
+  h.ammo = ship.maxAmmo;
+  h.ammoTrickle = 0;
   h.boost = 100;
-  h.energy = 100;
   h.lastShot = -10;
   h.boostLocked = false;
-  h.recharging = false;
+  h.outOfAmmo = false;
 
   game.time = 0;
   game.score = 0;
@@ -130,6 +148,10 @@ export function resetGame(shipKey) {
   game.maxCombo = 1;
   game.comboTimer = 0;
   game.sector = 1;
+  game.sectorStartedAt = 0;
+  game.pickupTimer = rand(...RULES.pickupEvery);
+  game.pickupsCollected = 0;
+  game.boltsShot = 0;
 
   const p = sectorParams(1);
   game.activeCount = p.activeCount;
@@ -150,7 +172,8 @@ function segmentHitsSphere(a, b, center, r) {
 }
 
 function fire(h, ship) {
-  const offsets = ship.twin ? [-1.6, 1.6] : [0];
+  const offsets = ship.twin && h.ammo >= 2 ? [-1.6, 1.6] : [0];
+  h.ammo = Math.max(0, h.ammo - offsets.length);
   for (const ox of offsets) {
     const b = game.bullets[bulletCursor];
     bulletCursor = (bulletCursor + 1) % game.bullets.length;
@@ -176,6 +199,7 @@ function killEnemy(e, scored) {
   });
 
   if (!scored) return;
+  if (isUfo && Math.random() < RULES.ufoDropChance) spawnPickup(e.pos);
   game.kills++;
   if (game.comboTimer > 0) game.combo = Math.min(RULES.maxCombo, game.combo + 1);
   game.comboTimer = RULES.comboWindow;
@@ -214,13 +238,15 @@ function gameOver() {
     time: game.time,
     sector: game.sector,
     maxCombo: game.maxCombo,
+    pickups: game.pickupsCollected,
     ship: game.ship.key,
   });
 }
 
-function damageHero() {
+function damageHero(base) {
   const h = game.hero;
-  h.hull -= 1;
+  const amount = Math.round(base * (1 + Math.max(0, game.sector - 8) * RULES.lateDamagePerSector));
+  h.health = Math.max(0, h.health - amount);
   h.invuln = RULES.invulnTime;
   game.combo = 1;
   game.comboTimer = 0;
@@ -228,12 +254,12 @@ function damageHero() {
   audio.play('explosion', { volume: 1, rate: 0.72 });
   audio.synth('thud');
   try {
-    navigator.vibrate?.(h.hull <= 0 ? [90, 40, 180] : 70);
+    navigator.vibrate?.(h.health <= 0 ? [90, 40, 180] : 70);
   } catch {
     /* vibration unsupported */
   }
-  emit('damage', h.hull);
-  if (h.hull <= 0) gameOver();
+  emit('damage', { amount, health: h.health });
+  if (h.health <= 0) gameOver();
 }
 
 // ── per-phase updates ───────────────────────────────────────
@@ -243,8 +269,9 @@ function updateHero(dt) {
   const k = input.keys;
   const t = input.touch;
 
-  let ax = clamp((k.right ? 1 : 0) - (k.left ? 1 : 0) + t.x, -1, 1);
-  let ay = clamp((k.up ? 1 : 0) - (k.down ? 1 : 0) + t.y, -1, 1);
+  const g = input.tilt;
+  let ax = clamp((k.right ? 1 : 0) - (k.left ? 1 : 0) + t.x + g.x, -1, 1);
+  let ay = clamp((k.up ? 1 : 0) - (k.down ? 1 : 0) + t.y + g.y, -1, 1);
   if (game.settings.invertY) ay = -ay;
   const wantFire = k.fire || t.fire;
   const wantBoost = k.boost || t.boost;
@@ -264,16 +291,22 @@ function updateHero(dt) {
   }
   if (h.boosting && !wasBoosting) audio.synth('whoosh');
 
-  // energy — holding fire on empty keeps recharging and auto-fires when ready
-  if (wantFire && game.time - h.lastShot >= ship.fireRate && h.energy >= ship.energyCost) {
-    h.energy -= ship.energyCost;
+  // ammo is limited — pickups refill it. Below a small reserve a slow
+  // emergency trickle kicks in, so an empty gun is never a dead end.
+  if (wantFire && game.time - h.lastShot >= ship.fireRate && h.ammo >= 1) {
     h.lastShot = game.time;
     fire(h, ship);
   }
-  if (game.time - h.lastShot > 0.22) h.energy = Math.min(100, h.energy + ship.energyRegen * dt);
-  const wasRecharging = h.recharging;
-  h.recharging = wantFire && h.energy < ship.energyCost;
-  if (h.recharging && !wasRecharging) audio.synth('deny');
+  if (h.ammo < RULES.ammoReserveBelow) {
+    h.ammoTrickle += RULES.ammoReserveRegen * dt;
+    if (h.ammoTrickle >= 1) {
+      h.ammoTrickle -= 1;
+      h.ammo = Math.min(ship.maxAmmo, h.ammo + 1);
+    }
+  }
+  const wasOut = h.outOfAmmo;
+  h.outOfAmmo = wantFire && h.ammo < 1;
+  if (h.outOfAmmo && !wasOut) audio.synth('deny');
 
   // movement
   h.vel.x = damp(h.vel.x, ax * ship.handling, 7, dt);
@@ -324,15 +357,143 @@ function updateEnemies(dt) {
       e.pos.x = e.baseX + Math.sin(game.time * 1.3 + e.seed) * 22;
       e.pos.z += e.drift * dt;
       e.ry += 1.6 * dt;
+      updateSaucerFire(e, dt);
     }
 
     if (h.invuln <= 0 && !h.dead) {
       const r = e.radius * RULES.rammingForgiveness + RULES.heroRadius;
       if (e.pos.distanceToSquared(h.pos) < r * r) {
         killEnemy(e, false);
-        damageHero();
+        const d = RULES.damage;
+        damageHero(Math.round(e.type === 'ufo' ? d.ufoRam : d.rockBase + e.scale * d.rockPerScale));
         if (h.dead) return;
       }
+    }
+  }
+}
+
+// ── saucer fire ─────────────────────────────────────────────
+let boltCursor = 0;
+
+function updateSaucerFire(e, dt) {
+  if (game.sector < RULES.enemyFireSector || game.hero.dead) return;
+  const h = game.hero.pos;
+  const ahead = h.z - e.pos.z;
+  const inRange = ahead > RULES.fireRange[0] && ahead < RULES.fireRange[1] && Math.abs(e.pos.x - h.x) < 120;
+
+  if (e.charge > 0) {
+    e.charge -= dt;
+    if (e.charge <= 0) fireBolt(e);
+    return;
+  }
+  if (!inRange) return;
+  e.fireTimer -= dt;
+  if (e.fireTimer <= 0) {
+    // telegraph first: the dome glows amber, then the shot comes
+    e.charge = RULES.fireTelegraph;
+    const interval = Math.max(
+      RULES.fireIntervalMin,
+      RULES.fireIntervalStart - (game.sector - RULES.enemyFireSector) * RULES.fireIntervalStep,
+    );
+    e.fireTimer = rand(interval * 0.7, interval * 1.3);
+    if (ahead < 450) audio.synth('charge');
+  }
+}
+
+function fireBolt(e) {
+  const b = game.bolts[boltCursor];
+  boltCursor = (boltCursor + 1) % game.bolts.length;
+  b.active = true;
+  b.pos.copy(e.pos);
+  b.prev.copy(e.pos);
+  // aimed where you are now, not where you'll be — moving dodges it
+  const speed = Math.min(
+    RULES.boltSpeedMax,
+    RULES.boltSpeed + (game.sector - RULES.enemyFireSector) * RULES.boltSpeedPerSector,
+  );
+  b.vel.subVectors(game.hero.pos, e.pos).normalize().multiplyScalar(speed);
+  b.life = RULES.boltLife;
+}
+
+function updateBolts(dt) {
+  const h = game.hero;
+  for (const b of game.bolts) {
+    if (!b.active) continue;
+    b.prev.copy(b.pos);
+    b.pos.addScaledVector(b.vel, dt);
+    b.life -= dt;
+    if (b.life <= 0 || b.pos.z > h.pos.z + 30) {
+      b.active = false;
+      continue;
+    }
+    if (h.invuln <= 0 && !h.dead) {
+      const r = RULES.boltRadius + RULES.heroRadius * RULES.rammingForgiveness;
+      if (segmentHitsSphere(b.prev, b.pos, h.pos, r)) {
+        b.active = false;
+        burst(b.pos, FX.bolt, 10, 30, 0.8, 0.4);
+        damageHero(RULES.damage.bolt);
+        if (h.dead) return;
+      }
+    }
+  }
+}
+
+// ── pickups ─────────────────────────────────────────────────
+let pickupCursor = 0;
+
+function neededPickup() {
+  const h = game.hero;
+  const needHealth = 1 - h.health / game.ship.maxHealth;
+  const needAmmo = 1 - h.ammo / game.ship.maxAmmo;
+  // bias towards what you're short of, but never fully predictable
+  return Math.random() < (needHealth + 0.15) / (needHealth + needAmmo + 0.3) ? 'health' : 'ammo';
+}
+
+export function spawnPickup(at) {
+  const p = game.pickups[pickupCursor];
+  pickupCursor = (pickupCursor + 1) % game.pickups.length;
+  const h = game.hero.pos;
+  p.active = true;
+  p.type = neededPickup();
+  p.seed = Math.random() * 10;
+  if (at) p.pos.copy(at);
+  else
+    p.pos.set(
+      h.x + rand(-1, 1) * RULES.pickupSpread,
+      rand(RULES.heroMinY + 6, 60),
+      h.z - rand(...RULES.pickupAhead),
+    );
+}
+
+function updatePickups(dt) {
+  const h = game.hero;
+  game.pickupTimer -= dt;
+  if (game.pickupTimer <= 0) {
+    spawnPickup();
+    game.pickupTimer = rand(...RULES.pickupEvery) * (1 + (game.sector - 1) * RULES.pickupSlowdown);
+  }
+  for (const p of game.pickups) {
+    if (!p.active) continue;
+    if (p.pos.z > h.pos.z + 30) {
+      p.active = false;
+      continue;
+    }
+    const d = p.pos.distanceTo(h.pos);
+    if (d < RULES.pickupMagnet) {
+      // gentle magnet: near misses still count
+      seg.subVectors(h.pos, p.pos).normalize();
+      p.pos.addScaledVector(seg, Math.min(d, 70 * dt));
+    }
+    if (d < RULES.pickupRadius + RULES.heroRadius) {
+      p.active = false;
+      const ship = game.ship;
+      const value = RULES.pickupValue[p.type];
+      if (p.type === 'health') h.health = Math.min(ship.maxHealth, h.health + value);
+      else h.ammo = Math.min(ship.maxAmmo, h.ammo + value);
+      game.pickupsCollected++;
+      burst(p.pos, p.type === 'health' ? FX.heal : FX.ammo, 16, 26, 0.8, 0.6);
+      audio.synth('pickup');
+      emit('pickup', { type: p.type, amount: value });
     }
   }
 }
@@ -348,6 +509,24 @@ function updateBullets(dt, forward) {
       b.active = false;
       continue;
     }
+    // lasers can shoot incoming bolts down
+    let hitBolt = false;
+    for (const bolt of game.bolts) {
+      if (!bolt.active) continue;
+      if (segmentHitsSphere(b.prev, b.pos, bolt.pos, RULES.boltRadius + 1.2)) {
+        bolt.active = false;
+        b.active = false;
+        hitBolt = true;
+        game.boltsShot++;
+        game.score += RULES.boltPoints;
+        burst(bolt.pos, FX.spark, 8, 40, 0.6, 0.35);
+        audio.synth('tick');
+        emit('kill', { points: RULES.boltPoints, combo: 1, type: 'bolt' });
+        break;
+      }
+    }
+    if (hitBolt) continue;
+
     // swept test: the bullet is a segment prev→pos, so it can never tunnel
     for (let i = 0; i < game.activeCount; i++) {
       const e = game.enemies[i];
@@ -381,9 +560,11 @@ function updateParticles(dt) {
 function updatePlaying(dt) {
   game.time += dt;
 
-  const sector = 1 + Math.floor(game.time / RULES.sectorDuration);
-  if (sector !== game.sector) {
+  const target = sectorFor(game.score, game.time);
+  if (target > game.sector && game.time - game.sectorStartedAt >= RULES.sectorMinGap) {
+    const sector = game.sector + 1; // one step at a time
     game.sector = sector;
+    game.sectorStartedAt = game.time;
     const p = sectorParams(sector);
     game.activeCount = p.activeCount;
     game.speedMul = p.speedMul;
@@ -399,6 +580,9 @@ function updatePlaying(dt) {
   const forward = updateHero(dt);
   updateEnemies(dt);
   if (game.phase !== 'playing') return; // died this frame
+  updateBolts(dt);
+  if (game.phase !== 'playing') return;
+  updatePickups(dt);
   updateBullets(dt, forward);
 }
 

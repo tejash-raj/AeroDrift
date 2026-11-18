@@ -16,7 +16,10 @@ Designed and developed by **Tejash Raj**, M.Des, IIT Guwahati · [Portfolio](htt
 ## Features
 
 - **Three ships with clear trade-offs.** Interceptor (fast, fragile, ×1.5 score), Defender (balanced, ×1.2) and Juggernaut (armoured, twin cannons).
-- **A difficulty curve.** Every 30 seconds starts a new sector: more enemies, faster flight, more saucers.
+- **Difficulty that follows your score.** The better you play, the sooner you reach the next sector: more enemies, faster flight, more saucers. A time floor keeps cautious players progressing, and late sectors keep escalating, so every run ends.
+- **Saucers shoot back** from sector 2. Their dome glows amber just before they fire; dodge the red bolts or shoot them down for bonus points.
+- **Health and limited ammo.** A hull bar with damage numbers (bigger rocks hit harder) and a finite ammo supply. Green crystals repair the hull, cyan crystals reload, and saucers sometimes drop them.
+- **Tilt to steer** (optional) with the phone's gyroscope, works in portrait and both landscape grips, with a Recenter button.
 - **Combo multiplier up to ×5** for chaining kills, with a visible timer.
 - **Fair collisions.** Hitboxes match what you see. Ramming is forgiving, shooting is generous, and a short invulnerability window follows every hit.
 - **Responsive feedback.** Trauma-based screen shake, damage vignette, hit and kill markers, score pops, engine flame, FOV kick on boost, and haptics on Android.
@@ -30,7 +33,7 @@ Designed and developed by **Tejash Raj**, M.Des, IIT Guwahati · [Portfolio](htt
 
 | Action | Keyboard | Touch |
 | --- | --- | --- |
-| Steer | `W A S D` / arrow keys | Drag on the left half of the screen |
+| Steer | `W A S D` / arrow keys | Drag on the left half of the screen, or tilt (Settings) |
 | Fire | `Space` (or `J`) | Hold **FIRE** |
 | Boost | `Shift` (or `K`) | Hold **BOOST** |
 | Pause | `Esc` / `P` | ⏸ button |
@@ -51,6 +54,7 @@ src/
 │   ├── state.js          mutable, non-reactive game state + object pools
 │   ├── simulation.js     all gameplay rules in one frame-rate-independent step()
 │   ├── audio.js          Web Audio engine (buffers, buses, synthesised UI sounds)
+│   ├── tilt.js           gyroscope steering, orientation-aware
 │   ├── events.js         tiny event bus: simulation → UI
 │   └── storage.js        safe localStorage wrapper
 ├── scene/                rendering only, reads game state
@@ -59,6 +63,8 @@ src/
 │   ├── Enemies.jsx       instanced asteroids + saucers (5 draw calls total)
 │   ├── Projectiles.jsx   instanced lasers
 │   ├── Particles.jsx     instanced explosions, sparks, splashes
+│   ├── Pickups.jsx       instanced health / ammo crystals
+│   ├── EnemyFire.jsx     instanced saucer bolts
 │   ├── Clouds.jsx        instanced cloud clusters
 │   ├── Environment.jsx   sky, fog, lights, stars, moon
 │   └── Hero.jsx          player ship, banking, engine flame

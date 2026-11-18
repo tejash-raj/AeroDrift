@@ -9,6 +9,7 @@ import { RULES, SHIPS } from './config';
 export const input = {
   keys: { left: false, right: false, up: false, down: false, fire: false, boost: false },
   touch: { x: 0, y: 0, fire: false, boost: false }, // x / y are analog, -1..1
+  tilt: { x: 0, y: 0 }, // gyroscope, -1..1 (see tilt.js)
 };
 
 export function clearInput() {
@@ -25,6 +26,9 @@ export const FX = {
   plasma: new Color('#5ee1ff'),
   spark: new Color('#fff1d6'),
   foam: new Color('#e6f4ff'),
+  heal: new Color('#7dffb0'),
+  ammo: new Color('#5ee1ff'),
+  bolt: new Color('#ff5a3d'),
 };
 
 const makeEnemy = () => ({
@@ -45,9 +49,14 @@ const makeEnemy = () => ({
   drift: 0,
   fall: 0,
   flash: 0,
+  fireTimer: 0, // saucers: time until the next shot
+  charge: 0, // saucers: telegraph glow before firing
 });
 
 const makeBullet = () => ({ active: false, pos: new Vector3(), prev: new Vector3(), travelled: 0 });
+
+const makePickup = () => ({ active: false, type: 'health', pos: new Vector3(), seed: 0 });
+const makeBolt = () => ({ active: false, pos: new Vector3(), prev: new Vector3(), vel: new Vector3(), life: 0 });
 
 const makeParticle = () => ({
   active: false,
@@ -70,13 +79,14 @@ export const game = {
     vel: new Vector2(),
     lean: 0,
     pitch: 0,
-    hull: SHIPS.defender.hull,
+    health: SHIPS.defender.maxHealth,
+    ammo: SHIPS.defender.maxAmmo,
+    ammoTrickle: 0,
     boost: 100,
-    energy: 100,
     lastShot: -10,
     boosting: false,
     boostLocked: false,
-    recharging: false,
+    outOfAmmo: false,
     invuln: 0,
     dead: false,
   },
@@ -84,6 +94,11 @@ export const game = {
   enemies: Array.from({ length: RULES.enemyPool }, makeEnemy),
   bullets: Array.from({ length: RULES.bulletPool }, makeBullet),
   particles: Array.from({ length: RULES.particlePool }, makeParticle),
+  pickups: Array.from({ length: RULES.pickupPool }, makePickup),
+  bolts: Array.from({ length: RULES.boltPool }, makeBolt),
+  pickupTimer: 8,
+  pickupsCollected: 0,
+  boltsShot: 0,
 
   score: 0,
   kills: 0,
@@ -93,6 +108,7 @@ export const game = {
   maxCombo: 1,
   comboTimer: 0,
   sector: 1,
+  sectorStartedAt: 0,
   activeCount: RULES.startEnemies,
   speedMul: 1,
 

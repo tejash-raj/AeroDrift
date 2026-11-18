@@ -58,6 +58,7 @@ export default function Enemies() {
       flash: new THREE.Color('#ffffff'),
       dome: new THREE.Color('#5ee1ff'),
       domeHurt: new THREE.Color('#ff4d5e'),
+      domeCharge: new THREE.Color('#ffb547'),
     }),
     [],
   );
@@ -102,7 +103,18 @@ export default function Enemies() {
         disc.current.setMatrixAt(i, dummy.matrix);
         dome.current.setMatrixAt(i, dummy.matrix);
         ring.current.setMatrixAt(i, dummy.matrix);
-        dome.current.setColorAt(i, e.flash > 0 ? colors.flash : e.hp < e.maxHp ? colors.domeHurt : colors.dome);
+        // amber flicker = "about to fire" warning; red = damaged
+        const charging = e.charge > 0 && Math.floor(e.charge * 16) % 2 === 0;
+        dome.current.setColorAt(
+          i,
+          e.flash > 0
+            ? colors.flash
+            : charging
+              ? colors.domeCharge
+              : e.hp < e.maxHp
+                ? colors.domeHurt
+                : colors.dome,
+        );
       } else {
         disc.current.setMatrixAt(i, HIDDEN);
         dome.current.setMatrixAt(i, HIDDEN);

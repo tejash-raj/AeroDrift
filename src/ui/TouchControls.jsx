@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { input } from '../game/state';
+import { recenterTilt } from '../game/tilt';
+import { audio } from '../game/audio';
 
 const RADIUS = 56;
 const DEADZONE = 0.12;
@@ -49,7 +51,7 @@ function HoldButton({ action, label, className, children }) {
  * Floating analog stick: touch anywhere in the left half and the stick
  * appears under your thumb. Supports diagonals and partial deflection.
  */
-export default function TouchControls({ showHints }) {
+export default function TouchControls({ showHints, tilt }) {
   const zone = useRef(null);
   const base = useRef(null);
   const knob = useRef(null);
@@ -119,7 +121,23 @@ export default function TouchControls({ showHints }) {
 
   return (
     <div className="touch">
+      {tilt && (
+        <div className="tilt-chip">
+          <span>Tilt to steer</span>
+          <button
+            type="button"
+            className="tilt-chip__btn"
+            onClick={() => {
+              recenterTilt();
+              audio.synth('click');
+            }}
+          >
+            Recenter
+          </button>
+        </div>
+      )}
       <div
+        hidden={tilt}
         ref={zone}
         className="touch__stick-zone"
         onPointerDown={down}
@@ -132,7 +150,7 @@ export default function TouchControls({ showHints }) {
         <div ref={base} className="stick">
           <div ref={knob} className="stick__knob" />
         </div>
-        {showHints && <span className="touch__hint touch__hint--stick">Drag to steer</span>}
+        {showHints && !tilt && <span className="touch__hint touch__hint--stick">Drag to steer</span>}
       </div>
 
       <div className="touch__buttons">
