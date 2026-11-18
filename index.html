@@ -2,12 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>AeroDrift — 3D Browser Arcade Shooter · Tejash Raj</title>
+    <meta
+      name="description"
+      content="Defend Earth's oceans from a falling moon. A zero-install 3D arcade shooter for desktop and mobile, designed and built by Tejash Raj (M.Des, IIT Guwahati)."
+    />
+    <meta name="author" content="Tejash Raj" />
+    <meta name="theme-color" content="#03050a" />
+    <meta name="color-scheme" content="dark" />
+
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Social preview. After deploying, replace ./og-image.png with the full URL,
+         e.g. https://aerodrift.vercel.app/og-image.png (link previews need absolute URLs). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AeroDrift — 3D Browser Arcade Shooter" />
+    <meta property="og:description" content="Defend Earth's oceans from a falling moon. Plays instantly in your browser, on desktop and mobile." />
+    <meta property="og:image" content="./og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>
+    <noscript>AeroDrift needs JavaScript and WebGL to run.</noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
