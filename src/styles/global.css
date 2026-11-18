@@ -98,7 +98,11 @@ p {
   inset: 0;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: none;
+  touch-action: manipulation; /* no double-tap zoom, but dialogs can still scroll */
+}
+.game-canvas,
+.hud {
+  touch-action: none; /* the game surface itself never pans or zooms */
 }
 
 /* ── shared atoms ─────────────────────────────────────────── */
@@ -1653,4 +1657,46 @@ p {
     opacity: 0;
     transform: scale(0.6);
   }
+}
+
+/* ── fix: dialogs on small screens ─────────────────────────
+   The dialog body must be allowed to shrink inside the flex
+   column, otherwise it grows past the screen and can't scroll.
+   The footer (e.g. "Got it — launch") stays pinned and visible. */
+.modal {
+  min-height: 0;
+  overflow: hidden;
+}
+.modal__header,
+.modal__footer {
+  flex: none;
+}
+.modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.modal__footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+@media (max-height: 560px), (max-width: 420px) {
+  .modal-backdrop {
+    padding: calc(8px + var(--safe-t)) 8px calc(8px + var(--safe-b));
+  }
+  .modal__title {
+    font-size: 22px;
+  }
+  .howto__card {
+    padding: 12px 14px;
+  }
+  .howto__card h3 {
+    font-size: 16px;
+  }
+}
+
+/* the combo badge takes no space until a chain starts */
+.combo:not(.is-on) {
+  display: none;
 }
